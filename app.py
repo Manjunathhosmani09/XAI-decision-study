@@ -212,14 +212,12 @@ def restart():
 st.set_page_config(page_title="XAI Decision Study", layout="centered")
 init_session()
 
-# Admin Download Section
 st.sidebar.markdown("---")
 admin_pass = st.sidebar.text_input("Admin Access", type="password")
 
 if admin_pass == "research2026":
     st.sidebar.subheader("Researcher Dashboard")
 
-    # Download Case Telemetry Data
     if os.path.exists(CASES_DATA_FILE):
         try:
             df_cases = pd.read_csv(CASES_DATA_FILE, on_bad_lines="skip")
@@ -238,7 +236,6 @@ if admin_pass == "research2026":
     else:
         st.sidebar.info("No case decisions logged yet.")
 
-    # Download Post-Survey Data
     if os.path.exists(SURVEY_DATA_FILE):
         try:
             df_survey = pd.read_csv(SURVEY_DATA_FILE, on_bad_lines="skip")
@@ -269,7 +266,9 @@ if st.session_state.stage == "screening":
     participant_name = st.text_input("Full Name:")
 
     current_status = st.radio(
-        "Current Status:", ["Student", "Working Professional"]
+        "Current Status:",
+        ["Student", "Working Professional"],
+        index=None,
     )
 
     role = st.radio(
@@ -280,33 +279,48 @@ if st.session_state.stage == "screening":
             "Software / Technology / Engineering",
             "Other",
         ],
+        index=None,
     )
     ml_experience = st.radio(
         "Do you have prior coursework or work experience involving machine learning or data analysis?",
         ["Yes", "No"],
+        index=None,
     )
     shap_familiarity = st.radio(
         "Have you worked with SHAP or similar model explanation tools before?",
         ["Yes, frequently", "Yes, a little", "No, not yet"],
+        index=None,
     )
     consent = st.checkbox(
         "I understand this is a research study for an MBA project, my responses will be "
         "anonymized, and I can withdraw at any time. I agree to proceed."
     )
 
-    if st.button("Start Study", disabled=not consent or not participant_name.strip()):
-        if ml_experience == "No":
+    if st.button("Start Study"):
+        if not participant_name.strip():
+            st.error("Please enter your name.")
+        elif not current_status:
+            st.error("Please select your current status.")
+        elif not role:
+            st.error("Please select your domain/specialization.")
+        elif not ml_experience:
+            st.error("Please select your ML experience status.")
+        elif not shap_familiarity:
+            st.error("Please select your familiarity with explanation tools.")
+        elif not consent:
+            st.error("Please check the consent box to proceed.")
+        elif ml_experience == "No":
             st.warning(
                 "Thank you for your interest — this study is currently scoped to "
                 "participants with foundational exposure to data analytics or ML."
             )
-            st.stop()
-        st.session_state.participant_name = participant_name.strip()
-        st.session_state.current_status = current_status
-        st.session_state.role = role
-        st.session_state.shap_familiarity = shap_familiarity
-        st.session_state.stage = "instructions"
-        st.rerun()
+        else:
+            st.session_state.participant_name = participant_name.strip()
+            st.session_state.current_status = current_status
+            st.session_state.role = role
+            st.session_state.shap_familiarity = shap_familiarity
+            st.session_state.stage = "instructions"
+            st.rerun()
 
 # ---------- STAGE 2: INSTRUCTIONS ----------
 elif st.session_state.stage == "instructions":
@@ -351,55 +365,75 @@ elif st.session_state.stage == "cases":
             decision = st.radio(
                 "Your decision — will this employee leave?",
                 ["Yes, will leave", "No, will stay"],
+                index=None,
             )
-            confidence = st.slider(
-                "How confident are you in this decision?", 1, 7, 4
+            confidence = st.select_slider(
+                "How confident are you in this decision? (1 = Very Low, 7 = Very High)",
+                options=[1, 2, 3, 4, 5, 6, 7],
+                value=None,
             )
             clarity = None
             actionability = None
             if group in ("B", "C"):
-                clarity = st.slider(
-                    "How clear was the explanation provided?", 1, 7, 4
+                clarity = st.select_slider(
+                    "How clear was the explanation provided? (1 = Very Unclear, 7 = Very Clear)",
+                    options=[1, 2, 3, 4, 5, 6, 7],
+                    value=None,
                 )
             if group == "C":
-                actionability = st.slider(
-                    "How actionable did the explanation feel?", 1, 7, 4
+                actionability = st.select_slider(
+                    "How actionable did the explanation feel? (1 = Not Actionable, 7 = Highly Actionable)",
+                    options=[1, 2, 3, 4, 5, 6, 7],
+                    value=None,
                 )
             submitted = st.form_submit_button("Submit & Next")
 
         if submitted:
-            elapsed = round(time.time() - st.session_state.case_start_time, 2)
-            participant_decision = (
-                "Left" if decision.startswith("Yes") else "Stayed"
-            )
-            correct = int(participant_decision == case["ground_truth"])
+            missing_fields = []
+            if decision is None:
+                missing_fields.append("Your decision (Will leave / Will stay)")
+            if confidence is None:
+                missing_fields.append("Confidence rating")
+            if group in ("B", "C") and clarity is None:
+                missing_fields.append("Explanation clarity rating")
+            if group == "C" and actionability is None:
+                missing_fields.append("Explanation actionability rating")
 
-            save_row_to_csv(
-                CASES_DATA_FILE,
-                {
-                    "participant_id": st.session_state.participant_id,
-                    "name": st.session_state.participant_name,
-                    "status": st.session_state.current_status,
-                    "group": group,
-                    "role": st.session_state.role,
-                    "shap_familiarity": st.session_state.shap_familiarity,
-                    "case_id": case["id"],
-                    "decision": participant_decision,
-                    "ground_truth": case["ground_truth"],
-                    "correct": correct,
-                    "confidence": confidence,
-                    "clarity": clarity if clarity is not None else "",
-                    "actionability": (
-                        actionability if actionability is not None else ""
-                    ),
-                    "decision_time_sec": elapsed,
-                    "timestamp": datetime.now().isoformat(),
-                },
-            )
+            if missing_fields:
+                st.error(f"Please provide: {', '.join(missing_fields)}")
+            else:
+                elapsed = round(time.time() - st.session_state.case_start_time, 2)
+                participant_decision = (
+                    "Left" if decision.startswith("Yes") else "Stayed"
+                )
+                correct = int(participant_decision == case["ground_truth"])
 
-            st.session_state.case_index += 1
-            st.session_state.case_start_time = time.time()
-            st.rerun()
+                save_row_to_csv(
+                    CASES_DATA_FILE,
+                    {
+                        "participant_id": st.session_state.participant_id,
+                        "name": st.session_state.participant_name,
+                        "status": st.session_state.current_status,
+                        "group": group,
+                        "role": st.session_state.role,
+                        "shap_familiarity": st.session_state.shap_familiarity,
+                        "case_id": case["id"],
+                        "decision": participant_decision,
+                        "ground_truth": case["ground_truth"],
+                        "correct": correct,
+                        "confidence": confidence,
+                        "clarity": clarity if clarity is not None else "",
+                        "actionability": (
+                            actionability if actionability is not None else ""
+                        ),
+                        "decision_time_sec": elapsed,
+                        "timestamp": datetime.now().isoformat(),
+                    },
+                )
+
+                st.session_state.case_index += 1
+                st.session_state.case_start_time = time.time()
+                st.rerun()
     else:
         st.session_state.stage = "post_survey"
         st.rerun()
@@ -407,13 +441,22 @@ elif st.session_state.stage == "cases":
 # ---------- STAGE 4: POST-SURVEY ----------
 elif st.session_state.stage == "post_survey":
     st.subheader("Post-Study Survey: Decision Evaluation")
-    st.write("Please indicate your level of agreement with the following statements (1 = Strongly Disagree, 7 = Strongly Agree):")
+    st.write(
+        "Please indicate your level of agreement with the following statements "
+        "(1 = Strongly Disagree, 7 = Strongly Agree):"
+    )
 
     with st.form("post_survey"):
         ratings = []
         for i, item in enumerate(POST_SURVEY_ITEMS):
-            ratings.append(st.slider(f"{i + 1}. {item}", 1, 7, 4, key=f"post_{i}"))
-        
+            r = st.select_slider(
+                f"{i + 1}. {item}",
+                options=[1, 2, 3, 4, 5, 6, 7],
+                value=None,
+                key=f"post_{i}",
+            )
+            ratings.append(r)
+
         open_1 = st.text_area(
             "What, if anything, made your decisions easier or harder in this study?"
         )
@@ -421,36 +464,53 @@ elif st.session_state.stage == "post_survey":
             "Any suggestions to improve how this explanation was presented?"
         )
         age_range = st.selectbox(
-            "Age range", ["18–24", "25–34", "35–44", "45+"]
+            "Age range",
+            ["18–24", "25–34", "35–44", "45+"],
+            index=None,
+            placeholder="Choose an option",
         )
         experience = st.selectbox(
-            "Years of ML/data experience", ["0–1", "1–2", "2+"]
+            "Years of ML/data experience",
+            ["0–1", "1–2", "2+"],
+            index=None,
+            placeholder="Choose an option",
         )
         education = st.selectbox(
             "Highest education level",
             ["Bachelor's", "Master's in progress", "Master's completed", "Other"],
+            index=None,
+            placeholder="Choose an option",
         )
         submitted = st.form_submit_button("Submit Survey")
 
     if submitted:
-        survey_record = {
-            "participant_id": st.session_state.participant_id,
-            "name": st.session_state.participant_name,
-            "status": st.session_state.current_status,
-            "group": st.session_state.group,
-            "age_range": age_range,
-            "experience": experience,
-            "education": education,
-            "open_response_1": open_1,
-            "open_response_2": open_2,
-            "timestamp": datetime.now().isoformat(),
-        }
-        for i, r in enumerate(ratings):
-            survey_record[f"post_item_{i+1}"] = r
+        if any(r is None for r in ratings):
+            st.error("Please provide a rating for all 12 evaluation questions.")
+        elif not age_range:
+            st.error("Please select your age range.")
+        elif not experience:
+            st.error("Please select your years of ML/data experience.")
+        elif not education:
+            st.error("Please select your highest education level.")
+        else:
+            survey_record = {
+                "participant_id": st.session_state.participant_id,
+                "name": st.session_state.participant_name,
+                "status": st.session_state.current_status,
+                "group": st.session_state.group,
+                "age_range": age_range,
+                "experience": experience,
+                "education": education,
+                "open_response_1": open_1,
+                "open_response_2": open_2,
+                "timestamp": datetime.now().isoformat(),
+            }
+            for i, r in enumerate(ratings):
+                survey_record[f"post_item_{i+1}"] = r
 
-        save_row_to_csv(SURVEY_DATA_FILE, survey_record)
-        st.session_state.stage = "done"
-        st.rerun()
+            save_row_to_csv(SURVEY_DATA_FILE, survey_record)
+            st.session_state.stage = "done"
+            st.rerun()
 
 # ---------- STAGE 5: DONE ----------
 elif st.session_state.stage == "done":
