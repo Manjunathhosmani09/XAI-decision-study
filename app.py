@@ -304,3 +304,31 @@ elif st.session_state.stage == "done":
     )
     if st.button("Restart / Submit Another Response"):
         restart()
+import os
+import pandas as pd
+import streamlit as st
+
+# Admin / Researcher Access Section in Sidebar
+st.sidebar.markdown("---")
+admin_pass = st.sidebar.text_input("Admin Access", type="password")
+
+if admin_pass == "research2026":  # Replace with your secret password
+    st.sidebar.subheader("Researcher Dashboard")
+    if os.path.exists("responses.csv"):
+        df_responses = pd.read_csv("responses.csv")
+        st.sidebar.write(f"Total entries: {len(df_responses)}")
+
+        # View data table in an expander
+        with st.expander("View Collected Data"):
+            st.dataframe(df_responses)
+
+        # Download button
+        csv_data = df_responses.to_csv(index=False).encode("utf-8")
+        st.sidebar.download_button(
+            label="📥 Download responses.csv",
+            data=csv_data,
+            file_name="collected_xai_responses.csv",
+            mime="text/csv",
+        )
+    else:
+        st.sidebar.warning("No responses recorded yet.")
