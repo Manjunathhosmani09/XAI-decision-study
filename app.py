@@ -19,7 +19,7 @@ SURVEY_DATA_FILE = "responses_survey.csv"
 GROUPS = ["A", "B", "C"]
 
 # ---------------------------------------------------------------------
-# 18 CASES
+# 10 CASES
 # ---------------------------------------------------------------------
 CASES = [
     dict(
@@ -152,110 +152,6 @@ CASES = [
         ],
         narrative="Every major factor — tenure, income, and satisfaction — points toward strong retention. This is a very low-risk case.",
     ),
-    dict(
-        id=11,
-        profile="Age 27, Sales Representative, Monthly Income ₹24,000, 2 yrs at company, OverTime: Yes, Job Satisfaction: Low",
-        prediction="Will Leave",
-        confidence=68,
-        ground_truth="Left",
-        shap=[
-            "Low Job Satisfaction (+0.27)",
-            "OverTime (+0.18)",
-            "Low Income (+0.14)",
-        ],
-        narrative="Low satisfaction and overtime, paired with below-average income for this role, are the primary contributors to elevated leave risk.",
-    ),
-    dict(
-        id=12,
-        profile="Age 36, Research Scientist, Monthly Income ₹68,000, 6 yrs at company, OverTime: No, Job Satisfaction: Medium",
-        prediction="Will Stay",
-        confidence=61,
-        ground_truth="Left",
-        shap=[
-            "Moderate Tenure (+0.14, decreases risk)",
-            "No Overtime (+0.10)",
-            "Stagnant Promotion History (+0.16, increases risk)",
-        ],
-        narrative="While tenure and workload appear favorable, the lack of a promotion in several years introduces meaningful uncertainty. Model confidence is only moderate.",
-    ),
-    dict(
-        id=13,
-        profile="Age 30, HR Representative, Monthly Income ₹30,000, 3 yrs at company, OverTime: Yes, Job Satisfaction: Medium",
-        prediction="Will Leave",
-        confidence=55,
-        ground_truth="Stayed",
-        shap=[
-            "OverTime (+0.18)",
-            "Short-Moderate Tenure (+0.12)",
-            "Medium Job Satisfaction (+0.08, slight increase)",
-        ],
-        narrative="Overtime is the dominant factor here, though satisfaction is not strongly negative. This is a borderline case with relatively low model confidence.",
-    ),
-    dict(
-        id=14,
-        profile="Age 48, Manufacturing Director, Monthly Income ₹165,000, 18 yrs at company, OverTime: No, Job Satisfaction: High",
-        prediction="Will Stay",
-        confidence=90,
-        ground_truth="Stayed",
-        shap=[
-            "Long Tenure (+0.31)",
-            "High Income (+0.21)",
-            "High Job Satisfaction (+0.17)",
-        ],
-        narrative="Strong tenure, compensation, and satisfaction combine to produce a confidently low leave-risk prediction.",
-    ),
-    dict(
-        id=15,
-        profile="Age 25, Sales Executive, Monthly Income ₹27,000, 1 yr at company, OverTime: Yes, Job Satisfaction: Low",
-        prediction="Will Leave",
-        confidence=80,
-        ground_truth="Left",
-        shap=[
-            "Short Tenure (+0.28)",
-            "Low Job Satisfaction (+0.24)",
-            "OverTime (+0.16)",
-        ],
-        narrative="A short tenure combined with low job satisfaction and frequent overtime places this employee in a high-risk category.",
-    ),
-    dict(
-        id=16,
-        profile="Age 40, Healthcare Representative, Monthly Income ₹72,000, 9 yrs at company, OverTime: No, Job Satisfaction: Medium",
-        prediction="Will Stay",
-        confidence=66,
-        ground_truth="Stayed",
-        shap=[
-            "Long-Moderate Tenure (+0.19)",
-            "No Overtime (+0.13)",
-            "Medium Job Satisfaction (+0.06)",
-        ],
-        narrative="Tenure and manageable workload favor retention, though satisfaction is only moderate, keeping model confidence from being very high.",
-    ),
-    dict(
-        id=17,
-        profile="Age 34, Sales Executive, Monthly Income ₹50,000, 5 yrs at company, OverTime: Yes, Job Satisfaction: High",
-        prediction="Will Stay",
-        confidence=63,
-        ground_truth="Left",
-        shap=[
-            "High Job Satisfaction (+0.22, decreases risk)",
-            "Moderate Tenure (+0.14)",
-            "OverTime (+0.17, increases risk, partially offsetting)",
-        ],
-        narrative="High job satisfaction is the main factor favoring retention, but consistent overtime is working against it, resulting in only moderate model confidence.",
-    ),
-    dict(
-        id=18,
-        profile="Age 29, Lab Technician, Monthly Income ₹25,000, 2.5 yrs at company, OverTime: No, Job Satisfaction: Medium",
-        prediction="Will Stay",
-        confidence=59,
-        ground_truth="Stayed",
-        shap=[
-            "No Overtime (+0.15)",
-            "Moderate Tenure (+0.11)",
-            "Medium Job Satisfaction (+0.07)",
-        ],
-        narrative="No single strong risk factor is present, though satisfaction and tenure are both only moderate, keeping this prediction from being highly confident.",
-    ),
 ]
 
 POST_SURVEY_ITEMS = [
@@ -265,6 +161,12 @@ POST_SURVEY_ITEMS = [
     "The format I was shown made me more confident in my decisions overall.",
     "I found it easy to understand why the model made its predictions.",
     "I believe this tool would improve decision-making in a real organization.",
+    "The explanations reduced the time and mental effort needed to evaluate cases.",
+    "I felt capable of identifying potential errors or biases in the model's output.",
+    "The level of detail in the explanations was sufficient and not overwhelming.",
+    "I relied heavily on the AI's explanation rather than relying purely on intuition.",
+    "The format helped me justify and defend my final decisions to others.",
+    "Overall, having access to this AI assistance increased my decision-making speed.",
 ]
 
 # ---------------------------------------------------------------------
@@ -364,11 +266,18 @@ st.title("Explainable AI — Decision Study")
 if st.session_state.stage == "screening":
     st.subheader("Before we begin")
 
+    participant_name = st.text_input("Full Name:")
+
+    current_status = st.radio(
+        "Current Status:", ["Student", "Working Professional"]
+    )
+
     role = st.radio(
-        "What is your current role/status?",
+        "What is your domain / field of specialization?",
         [
-            "Graduate student (MBA/MSBA/Data Science/related)",
-            "Early-career ML/Data professional (0–2 years experience)",
+            "Management / MBA / Business Analytics",
+            "Data Science / Machine Learning / AI",
+            "Software / Technology / Engineering",
             "Other",
         ],
     )
@@ -385,13 +294,15 @@ if st.session_state.stage == "screening":
         "anonymized, and I can withdraw at any time. I agree to proceed."
     )
 
-    if st.button("Start Study", disabled=not consent):
-        if role == "Other" or ml_experience == "No":
+    if st.button("Start Study", disabled=not consent or not participant_name.strip()):
+        if ml_experience == "No":
             st.warning(
                 "Thank you for your interest — this study is currently scoped to "
-                "graduate students and early-career ML/data professionals."
+                "participants with foundational exposure to data analytics or ML."
             )
             st.stop()
+        st.session_state.participant_name = participant_name.strip()
+        st.session_state.current_status = current_status
         st.session_state.role = role
         st.session_state.shap_familiarity = shap_familiarity
         st.session_state.stage = "instructions"
@@ -401,8 +312,8 @@ if st.session_state.stage == "screening":
 elif st.session_state.stage == "instructions":
     st.subheader("Instructions")
     st.write(
-        f"You are assigned to **Group {st.session_state.group}**. "
-        "You will be shown 18 business cases involving an employee attrition prediction "
+        f"Hello **{st.session_state.participant_name}**, you are assigned to **Group {st.session_state.group}**. "
+        "You will be shown 10 business cases involving an employee attrition prediction "
         "made by a machine learning model. For each case, decide: **Will this employee "
         "leave the company or not?** Then rate your confidence. There are no right or "
         "wrong answers being judged about you personally — we are studying the tool, not you."
@@ -467,6 +378,8 @@ elif st.session_state.stage == "cases":
                 CASES_DATA_FILE,
                 {
                     "participant_id": st.session_state.participant_id,
+                    "name": st.session_state.participant_name,
+                    "status": st.session_state.current_status,
                     "group": group,
                     "role": st.session_state.role,
                     "shap_familiarity": st.session_state.shap_familiarity,
@@ -493,17 +406,19 @@ elif st.session_state.stage == "cases":
 
 # ---------- STAGE 4: POST-SURVEY ----------
 elif st.session_state.stage == "post_survey":
-    st.subheader("A few final questions")
+    st.subheader("Post-Study Survey: Decision Evaluation")
+    st.write("Please indicate your level of agreement with the following statements (1 = Strongly Disagree, 7 = Strongly Agree):")
 
     with st.form("post_survey"):
         ratings = []
         for i, item in enumerate(POST_SURVEY_ITEMS):
-            ratings.append(st.slider(item, 1, 7, 4, key=f"post_{i}"))
+            ratings.append(st.slider(f"{i + 1}. {item}", 1, 7, 4, key=f"post_{i}"))
+        
         open_1 = st.text_area(
             "What, if anything, made your decisions easier or harder in this study?"
         )
         open_2 = st.text_area(
-            "Any suggestions to improve how this information was presented?"
+            "Any suggestions to improve how this explanation was presented?"
         )
         age_range = st.selectbox(
             "Age range", ["18–24", "25–34", "35–44", "45+"]
@@ -520,6 +435,8 @@ elif st.session_state.stage == "post_survey":
     if submitted:
         survey_record = {
             "participant_id": st.session_state.participant_id,
+            "name": st.session_state.participant_name,
+            "status": st.session_state.current_status,
             "group": st.session_state.group,
             "age_range": age_range,
             "experience": experience,
